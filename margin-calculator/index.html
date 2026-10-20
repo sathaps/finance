@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Free margin call calculator: see how far your portfolio can fall, market-wide or one stock at a time, before your broker auto-liquidates.">
+<title>Margin Cushion Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: inputs ledger on the left, risk readout on the right; stacks to one column on phones */
+:root {
+  --bg: #eef2f5;
+  --surface: #ffffff;
+  --sunk: #f5f7f9;
+  --ink: #152230;
+  --muted: #5a6b7b;
+  --line: #d3dbe3;
+  --accent: #1f5fae;
+  --ok: #1d7a4f;
+  --warn: #9a5c00;
+  --bad: #b3261e;
+  --ok-bg: #e2f3ea;
+  --warn-bg: #fbefd9;
+  --bad-bg: #fbe3e1;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151d; --surface: #15202b; --sunk: #111a23; --ink: #e2e9f0; --muted: #94a5b6; --line: #293846;
+    --accent: #6ea8ee; --ok: #52c58e; --warn: #e8a645; --bad: #f2776d;
+    --ok-bg: #143327; --warn-bg: #3a2a10; --bad-bg: #3d1a18; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151d; --surface: #15202b; --sunk: #111a23; --ink: #e2e9f0; --muted: #94a5b6; --line: #293846;
+  --accent: #6ea8ee; --ok: #52c58e; --warn: #e8a645; --bad: #f2776d;
+  --ok-bg: #143327; --warn-bg: #3a2a10; --bad-bg: #3d1a18; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: grid; gap: 6px; margin-bottom: 22px; }
+.eyebrow { font: 600 12px/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(28px, 5vw, 44px)/1.08 var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.lede { color: var(--muted); max-width: 62ch; margin: 0; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+h2 { font: 600 13px/1.2 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.example { font-size: 13px; color: var(--muted); background: var(--sunk); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font: 600 11px/1.2 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0 6px 8px; white-space: nowrap; }
+td { padding: 4px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+td.num, th.num { text-align: right; }
+input { font: 14px var(--f-mono); color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; width: 100%; min-width: 0; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.in-sym { width: 80px; text-transform: uppercase; }
+.in-sh { width: 84px; } .in-px { width: 92px; } .in-m { width: 64px; }
+button { font: 600 14px var(--f-body); cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 8px 12px; }
+button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+button.icon { padding: 4px 9px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 600; font-size: 14px; }
+.hint { font-size: 13px; color: var(--muted); }
+.verdict { display: grid; gap: 8px; padding: 18px; border-radius: 10px; background: var(--sunk); border: 1px solid var(--line); }
+.pill { justify-self: start; font: 600 12px/1 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; padding: 6px 10px; border-radius: 999px; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); }
+.pill.warn { color: var(--warn); background: var(--warn-bg); }
+.pill.bad { color: var(--bad); background: var(--bad-bg); }
+.big { font: 700 clamp(40px, 8vw, 64px)/1 var(--f-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.big.ok { color: var(--ok); } .big.warn { color: var(--warn); } .big.bad { color: var(--bad); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.stat { display: grid; gap: 2px; padding: 10px 12px; border-left: 2px solid var(--line); }
+.stat span { font-size: 12px; color: var(--muted); }
+.stat b { font: 600 18px var(--f-mono); font-variant-numeric: tabular-nums; }
+input[type=range] { padding: 0; accent-color: var(--accent); background: transparent; border: 0; }
+.scenario { display: grid; gap: 10px; }
+.scenario-out { font-size: 14px; }
+.scenario-out b { font-family: var(--f-mono); }
+svg { width: 100%; height: auto; display: block; }
+.ax { stroke: var(--line); stroke-width: 1; }
+.zero { stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.area { fill: var(--accent); opacity: .12; }
+.tick { fill: var(--muted); font: 11px var(--f-mono); }
+.mark-liq { fill: var(--bad); }
+.mark-now { fill: var(--ink); }
+.lbl-liq { fill: var(--bad); font: 600 11px var(--f-mono); }
+.notes { display: grid; gap: 8px; font-size: 14px; color: var(--muted); max-width: 70ch; }
+.notes p { margin: 0; }
+.notes b { color: var(--ink); }
+.sev { font: 600 12px var(--f-mono); }
+.sev.ok { color: var(--ok); } .sev.warn { color: var(--warn); } .sev.bad { color: var(--bad); }
+@media (prefers-reduced-motion: no-preference) { .big { transition: color .2s; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Margin cushion calculator</span>
+    <h1>How far can your portfolio fall before the broker sells?</h1>
+    <p class="lede">Enter your positions and your margin loan. You get the market drop that wipes out your excess liquidity, the point where IBKR-style brokers start auto-liquidating, plus how far each stock could fall on its own.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-pos">
+      <h2 id="h-pos">Your positions</h2>
+      <div class="example" id="example-note">Showing an example portfolio. Replace it with your own numbers.</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th class="num">Shares</th><th class="num">Price $</th><th class="num">Maint. %</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button type="button" id="add">Add position</button>
+        <button type="button" id="reset">Load example</button>
+      </div>
+      <div class="field">
+        <label for="loan">Margin loan (debit balance) $</label>
+        <input id="loan" type="number" min="0" step="100" inputmode="decimal">
+        <span class="hint">The negative cash figure in your account. Enter 0 if you hold no loan.</span>
+      </div>
+      <p class="hint">Maint. % is the maintenance margin your broker sets per stock. 25% is the regulatory floor; IBKR often charges 30% or more on volatile or concentrated names. Check the "Maint Margin" column in your account window.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-res">
+      <h2 id="h-res">Risk readout</h2>
+      <div class="verdict">
+        <span class="pill" id="pill">—</span>
+        <div class="big" id="cushion">—</div>
+        <div id="cushion-text">market-wide drop before liquidation</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Market value</span><b id="s-mv">—</b></div>
+        <div class="stat"><span>Equity</span><b id="s-eq">—</b></div>
+        <div class="stat"><span>Maintenance requirement</span><b id="s-req">—</b></div>
+        <div class="stat"><span>Excess liquidity</span><b id="s-ex">—</b></div>
+        <div class="stat"><span>Leverage (value ÷ equity)</span><b id="s-lev">—</b></div>
+      </div>
+
+      <div class="scenario">
+        <label for="drop" class="field"><span style="font-weight:600">What if everything drops <b id="drop-val">20%</b>?</span></label>
+        <input id="drop" type="range" min="0" max="80" step="1" value="20">
+        <div class="scenario-out" id="scenario-out"></div>
+      </div>
+
+      <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Excess liquidity as the market falls"></svg>
+
+      <div>
+        <h2 style="margin-bottom:8px">If only one stock falls</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Symbol</th><th class="num">Position value</th><th class="num">Drop to liquidation</th><th class="num">Price at liquidation</th></tr></thead>
+            <tbody id="single"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:20px" aria-labelledby="h-how">
+    <h2 id="h-how">How this is calculated</h2>
+    <div class="notes">
+      <p><b>Equity</b> = market value − margin loan. <b>Maintenance requirement</b> = each position's value × its maintenance %. <b>Excess liquidity</b> = equity − requirement. When excess liquidity reaches zero, the broker can sell.</p>
+      <p><b>Market-wide drop</b> assumes every position falls by the same percentage: drop = 1 − loan ÷ (market value − requirement).</p>
+      <p><b>Single-stock drop</b> holds everything else still: drop = excess liquidity ÷ (position value × (1 − maint. %)).</p>
+      <p><b>Real life is worse.</b> IBKR checks margin in real time and generally liquidates without a margin call or grace period. Brokers can raise maintenance rates during volatility or on concentrated positions, and options, short positions and currency balances change the math. Treat the result as the best case and keep a buffer well above it.</p>
+      <p>For education only, not financial advice. Numbers stay in your browser.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var EXAMPLE = {
+    positions: [
+      { sym: "NVDA", sh: 100, px: 180, m: 30 },
+      { sym: "AMZN", sh: 150, px: 220, m: 25 },
+      { sym: "MSFT", sh: 60, px: 500, m: 25 }
+    ],
+    loan: 40000
+  };
+  var KEY = "margin-cushion-v1";
+  var state = load();
+  var usingExample = !state;
+  if (!state) state = clone(EXAMPLE);
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function load() { try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  var usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  var usd2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  function pct(x) { return (x * 100).toFixed(1).replace(/\.0$/, "") + "%"; }
+  function compact(v) {
+    var a = Math.abs(v), s = v < 0 ? "−" : "";
+    if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(1) + "M";
+    if (a >= 1e3) return s + "$" + Math.round(a / 1e3) + "k";
+    return s + "$" + Math.round(a);
+  }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function renderRows() {
+    $("rows").innerHTML = state.positions.map(function (p, i) {
+      return '<tr data-i="' + i + '">' +
+        '<td><input class="in-sym" id="sym-' + i + '" data-k="sym" aria-label="Symbol" value="' + esc(p.sym) + '"></td>' +
+        '<td class="num"><input class="in-sh" id="sh-' + i + '" data-k="sh" type="number" min="0" step="1" inputmode="decimal" aria-label="Shares" value="' + p.sh + '"></td>' +
+        '<td class="num"><input class="in-px" id="px-' + i + '" data-k="px" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Price" value="' + p.px + '"></td>' +
+        '<td class="num"><input class="in-m" id="m-' + i + '" data-k="m" type="number" min="0" max="100" step="1" inputmode="decimal" aria-label="Maintenance percent" value="' + p.m + '"></td>' +
+        '<td><button type="button" class="icon" data-del="' + i + '" aria-label="Remove ' + esc(p.sym || "position") + '">✕</button></td>' +
+        '</tr>';
+    }).join("");
+    $("loan").value = state.loan;
+    $("example-note").hidden = !usingExample;
+  }
+
+  function base() {
+    var mv = 0, req = 0;
+    var pos = state.positions.map(function (p) {
+      var v = Math.max(0, num(p.sh)) * Math.max(0, num(p.px));
+      var m = Math.min(100, Math.max(0, num(p.m))) / 100;
+      mv += v; req += v * m;
+      return { sym: (p.sym || "—").toUpperCase(), v: v, m: m, px: num(p.px) };
+    });
+    var loan = Math.max(0, num(state.loan));
+    var eq = mv - loan;
+    return { mv: mv, req: req, loan: loan, eq: eq, ex: eq - req, pos: pos };
+  }
+  function at(b, d) {
+    var mv = b.mv * (1 - d), req = b.req * (1 - d), eq = mv - b.loan;
+    return { mv: mv, req: req, eq: eq, ex: eq - req };
+  }
+  // Uniform drop at which excess liquidity hits zero
+  function cushion(b) {
+    if (b.mv <= 0) return null;
+    if (b.loan <= 0) return 1;
+    var room = b.mv - b.req;
+    if (room <= 0) return 0;
+    return Math.max(0, 1 - b.loan / room);
+  }
+  function severity(d) {
+    if (d === null) return "none";
+    if (d <= 0) return "bad";
+    if (d < 0.15) return "bad";
+    if (d < 0.30) return "warn";
+    return "ok";
+  }
+
+  function render() {
+    var b = base();
+    var d = cushion(b);
+    var sev = severity(d);
+
+    var pill = $("pill"), big = $("cushion"), txt = $("cushion-text");
+    big.className = "big " + (sev === "none" ? "" : sev);
+    pill.className = "pill " + (sev === "none" ? "" : sev);
+    if (d === null) {
+      pill.textContent = "Add a position"; big.textContent = "—"; txt.textContent = "Enter at least one position with shares and a price.";
+    } else if (b.loan <= 0) {
+      pill.className = "pill ok"; big.className = "big ok";
+      pill.textContent = "No margin loan"; big.textContent = "None"; txt.textContent = "Without a loan, a price drop cannot trigger liquidation.";
+    } else if (d <= 0) {
+      pill.textContent = "Margin deficit"; big.textContent = "0%"; txt.textContent = "Excess liquidity is already negative. A broker could sell positions now.";
+    } else {
+      pill.textContent = sev === "ok" ? "Comfortable cushion" : sev === "warn" ? "Thin cushion" : "Danger zone";
+      big.textContent = pct(d);
+      txt.textContent = "market-wide drop before excess liquidity hits zero";
+    }
+
+    $("s-mv").textContent = usd.format(b.mv);
+    $("s-eq").textContent = usd.format(b.eq);
+    $("s-req").textContent = usd.format(b.req);
+    $("s-ex").textContent = usd.format(b.ex);
+    $("s-lev").textContent = b.eq > 0 ? (b.mv / b.eq).toFixed(2) + "×" : "—";
+
+    var dropV = num($("drop").value) / 100;
+    $("drop-val").textContent = pct(dropV);
+    var s = at(b, dropV);
+    var sSev = s.ex < 0 ? "bad" : (b.mv > 0 && s.ex < s.mv * 0.05 ? "warn" : "ok");
+    $("scenario-out").innerHTML = b.mv > 0 ?
+      'Equity <b>' + usd.format(s.eq) + '</b> · Excess liquidity <b>' + usd.format(s.ex) + '</b> · <span class="sev ' + sSev + '">' +
+      (s.ex < 0 ? "Liquidation likely" : sSev === "warn" ? "Very close" : "Still safe") + '</span>' : "";
+
+    drawChart(b, d, dropV);
+
+    $("single").innerHTML = b.pos.filter(function (p) { return p.v > 0; }).map(function (p) {
+      var x, cls, pxAt;
+      if (b.ex <= 0) { x = 0; }
+      else if (p.m >= 1) { x = Infinity; }
+      else { x = b.ex / (p.v * (1 - p.m)); }
+      var label;
+      if (b.loan <= 0) { label = "Not reachable"; cls = "ok"; pxAt = "—"; }
+      else if (x >= 1) { label = "Can go to zero"; cls = "ok"; pxAt = "—"; }
+      else { cls = severity(x); label = pct(x); pxAt = usd2.format(p.px * (1 - x)); }
+      return '<tr><td>' + esc(p.sym) + '</td><td class="num">' + usd.format(p.v) + '</td><td class="num"><span class="sev ' + cls + '">' + label + '</span></td><td class="num">' + pxAt + '</td></tr>';
+    }).join("") || '<tr><td colspan="4" class="hint">No positions yet.</td></tr>';
+  }
+
+  function drawChart(b, d, now) {
+    var svg = $("chart");
+    if (b.mv <= 0) { svg.innerHTML = ""; return; }
+    var W = 600, H = 240, L = 56, R = 16, T = 14, B = 34;
+    var xMax = d !== null && d > 0 && d < 1 ? Math.min(0.95, Math.max(0.4, Math.ceil(d * 1.5 * 10) / 10)) : 0.6;
+    xMax = Math.max(xMax, Math.ceil(now * 10) / 10);
+    var pts = [], N = 60, yMin = 0, yMax = 0;
+    for (var i = 0; i <= N; i++) {
+      var dd = xMax * i / N, e = at(b, dd).ex;
+      pts.push([dd, e]); yMin = Math.min(yMin, e); yMax = Math.max(yMax, e);
+    }
+    if (yMax === yMin) yMax = yMin + 1;
+    var pad = (yMax - yMin) * 0.08; yMax += pad; yMin -= pad;
+    function X(v) { return L + (W - L - R) * v / xMax; }
+    function Y(v) { return T + (H - T - B) * (yMax - v) / (yMax - yMin); }
+    var g = [];
+    g.push('<line class="ax" x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - R) + '" y2="' + (H - B) + '"/>');
+    var step = xMax > 0.6 ? 0.2 : 0.1;
+    for (var t = 0; t <= xMax + 1e-9; t += step) {
+      g.push('<text class="tick" x="' + X(t) + '" y="' + (H - B + 18) + '" text-anchor="middle">−' + Math.round(t * 100) + '%</text>');
+    }
+    var ys = [yMax - pad, (yMax - pad + yMin + pad) / 2, yMin + pad];
+    ys.forEach(function (v) {
+      g.push('<text class="tick" x="' + (L - 8) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + compact(v) + '</text>');
+    });
+    if (yMin < 0 && yMax > 0) g.push('<line class="zero" x1="' + L + '" y1="' + Y(0) + '" x2="' + (W - R) + '" y2="' + Y(0) + '"/>');
+    var path = pts.map(function (p, k) { return (k ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1); }).join(" ");
+    var base0 = Y(Math.max(yMin, Math.min(yMax, 0)));
+    g.push('<path class="area" d="' + path + ' L' + X(xMax) + ' ' + base0 + ' L' + X(0) + ' ' + base0 + ' Z"/>');
+    g.push('<path class="curve" d="' + path + '"/>');
+    if (d !== null && d > 0 && d <= xMax && b.loan > 0) {
+      g.push('<circle class="mark-liq" cx="' + X(d) + '" cy="' + Y(0) + '" r="5"/>');
+      var anchor = X(d) > W - 140 ? "end" : "start";
+      g.push('<text class="lbl-liq" x="' + (X(d) + (anchor === "start" ? 8 : -8)) + '" y="' + (Y(0) - 8) + '" text-anchor="' + anchor + '">Liquidation at −' + pct(d) + '</text>');
+    }
+    g.push('<circle class="mark-now" cx="' + X(now) + '" cy="' + Y(at(b, now).ex) + '" r="4"/>');
+    svg.innerHTML = g.join("");
+  }
+
+  $("rows").addEventListener("input", function (e) {
+    var tr = e.target.closest("tr"); if (!tr) return;
+    var i = +tr.dataset.i, k = e.target.dataset.k;
+    state.positions[i][k] = k === "sym" ? e.target.value : e.target.value;
+    usingExample = false; $("example-note").hidden = true;
+    save(); render();
+  });
+  $("rows").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-del]"); if (!btn) return;
+    state.positions.splice(+btn.dataset.del, 1);
+    usingExample = false; save(); renderRows(); render();
+  });
+  $("add").addEventListener("click", function () {
+    state.positions.push({ sym: "", sh: 0, px: 0, m: 30 });
+    usingExample = false; save(); renderRows(); render();
+    var last = document.getElementById("sym-" + (state.positions.length - 1)); if (last) last.focus();
+  });
+  $("reset").addEventListener("click", function () {
+    state = clone(EXAMPLE); usingExample = true;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    renderRows(); render();
+  });
+  $("loan").addEventListener("input", function (e) { state.loan = e.target.value; usingExample = false; $("example-note").hidden = true; save(); render(); });
+  $("drop").addEventListener("input", render);
+
+  renderRows(); render();
+})();
+</script>
+</body>
+</html>
